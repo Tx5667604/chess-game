@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Шахматы онлайн</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/1.0.0-beta.8/chess.min.js"></script>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #1a1a2e;
+    color: #eee;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  .container {
+    max-width: 700px;
+    width: 100%;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 24px;
+  }
+  h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, #e94560, #0f3460);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-align: center;
+  }
+  .board-wrap {
+    position: relative;
+    width: 100%;
+    max-width: 560px;
+    aspect-ratio: 1;
+  }
+  #board { width: 100%; height: 100%; }
+  .status {
+    font-size: 1.1rem;
+    padding: 12px 24px;
+    border-radius: 12px;
+    background: #16213e;
+    text-align: center;
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    max-width: 560px;
+  }
+  .lobby {
+    width: 100%;
+    max-width: 560px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .lobby-row {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .lobby-row button {
+    flex: 1;
+    min-width: 140px;
+  }
+  .btn {
+    padding: 14px 28px;
+    border: none;
+    border-radius: 12px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all .2s;
+    color: #fff;
+  }
+  .btn:active { transform: scale(.97); }
+  .btn-primary { background: #e94560; }
+  .btn-primary:hover { background: #d63851; }
+  .btn-secondary { background: #0f3460; }
+  .btn-secondary:hover { background: #1a4a7a; }
+  .btn-success { background: #2ecc71; }
+  .btn-success:hover { background: #27ae60; }
+  .btn-danger { background: #e74c3c; }
+  .btn-danger:hover { background: #c0392b; }
+  .btn:disabled { opacity: .4; cursor: not-allowed; }
+  input, .link-box {
+    padding: 14px 18px;
+    border-radius: 12px;
+    border: 2px solid #0f3460;
+    background: #16213e;
+    color: #eee;
+    font-size: 1rem;
+    flex: 1;
+    min-width: 0;
+  }
+  input:focus { outline: none; border-color: #e94560; }
+  .link-box {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    word-break: break-all;
+    flex-wrap: wrap;
+  }
+  .link-box code {
+    font-size: .85rem;
+    color: #e94560;
+    flex: 1;
+    min-width: 0;
+  }
+  .link-box .btn { padding: 8px 16px; font-size: .8rem; }
+  .player-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    max-width: 560px;
+  }
+  .player-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border-radius: 10px;
+    background: #16213e;
+    font-size: .9rem;
+  }
+  .player-badge .dot {
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+  .dot.white { background: #fff; border: 1px solid #555; }
+  .dot.black { background: #222; border: 1px solid #555; }
+  .dot.online { background: #2ecc71; }
+  .dot.offline { background: #666; }
+  .moves-list {
+    width: 100%;
+    max-width: 560px;
+    max-height: 180px;
+    overflow-y: auto;
+    background: #16213e;
+    border-radius: 12px;
+    padding: 12px 16px;
+    font-family: 'Courier New', monospace;
+    font-size: .85rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 16px;
+  }
+  .moves-list .move-num { color: #666; margin-right: 4px; }
+  .hidden { display: none !important; }
+  .spinner {
+    width: 20px; height: 20px;
+    border: 3px solid #333;
+    border-top-color: #e94560;
+    border-radius: 50%;
+    animation: spin .8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .captured {
+    width: 100%;
+    max-width: 560px;
+    display: flex;
+    gap: 24px;
+    font-size: 1.1rem;
+  }
+  .captured div { flex: 1; }
+  .captured span { letter-spacing: 2px; }
+  .red-text { color: #e94560; }
+  .green-text { color: #2ecc71; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>♟ Шахматы онлайн</h1>
+
+  <!-- Lobby -->
+  <div id="lobby" class="lobby">
+    <div class="lobby-row">
+      <button class="btn btn-primary" onclick="createGame()">Создать игру</button>
+      <button class="btn btn-secondary" onclick="showJoin()">Присоединиться</button>
+    </div>
+    <div id="joinRow" class="lobby-row hidden">
+      <input id="peerIdInput" placeholder="Введите ID соперника" onkeydown="if(event.key==='Enter')joinGame()">
+      <button class="btn btn-success" onclick="joinGame()">OK</button>
+    </div>
+    <div id="waitingMsg" class="hidden lobby-row" style="justify-content:center;align-items:center;gap:12px">
+      <div class="spinner"></div>
+      <span>Ожидаем соперника...</span>
+    </div>
+  </div>
+
+  <!-- Link to share -->
+  <div id="linkBox" class="link-box hidden">
+    <span>🔗 Ссылка для друга:</span>
+    <code id="shareLink"></code>
+    <button class="btn btn-primary" onclick="copyLink()">Копировать</button>
+  </div>
+
+  <!-- Player info -->
+  <div class="player-info hidden" id="playerInfo">
+    <div class="player-badge"><span class="dot white" id="myDot"></span> <span id="myName">Вы</span></div>
+    <span style="color:#666">vs</span>
+    <div class="player-badge"><span class="dot black" id="oppDot"></span> <span id="oppName">Соперник</span></div>
+    <div style="margin-left:auto"><span class="dot" id="connDot"></span></div>
+  </div>
+
+  <!-- Captured pieces -->
+  <div class="captured hidden" id="captured">
+    <div><span id="capturedWhite"></span></div>
+    <div style="text-align:right"><span id="capturedBlack"></span></div>
+  </div>
+
+  <!-- Board -->
+  <div class="board-wrap">
+    <div id="board"></div>
+  </div>
+
+  <!-- Status -->
+  <div class="status" id="status">Создайте игру или присоединитесь</div>
+
+  <!-- Moves -->
+  <div class="moves-list hidden" id="movesList"></div>
+
+  <!-- Surrender / New Game -->
+  <div class="lobby-row hidden" id="gameBtns">
+    <button class="btn btn-danger" onclick="surrender()" style="flex:0">Сдаться</button>
+    <button class="btn btn-primary hidden" id="newGameBtn" onclick="newGame()">Новая игра</button>
+  </div>
+</div>
+
+<script>
+// ====== Chess Game State ======
+const game = new Chess();
+let peer = null;
+let conn = null;
+let myPeerId = null;
+let myColor = null; // 'w' or 'b'
+let gameOver = false;
+let isMyTurn = false;
+let isCreator = false;
+let gameStarted = false;
+
+// ====== DOM refs ======
+const lobby = document.getElementById('lobby');
+const joinRow = document.getElementById('joinRow');
+const waitingMsg = document.getElementById('waitingMsg');
+const linkBox = document.getElementById('linkBox');
+const shareLink = document.getElementById('shareLink');
+const playerInfo = document.getElementById('playerInfo');
+const myDot = document.getElementById('myDot');
+const myName = document.getElementById('myName');
+const oppDot = document.getElementById('oppDot');
+const oppName = document.getElementById('oppName');
+const connDot = document.getElementById('connDot');
+const capturedEl = document.getElementById('captured');
+const capturedWhite = document.getElementById('capturedWhite');
+const capturedBlack = document.getElementById('capturedBlack');
+const statusEl = document.getElementById('status');
+const movesList = document.getElementById('movesList');
+const gameBtns = document.getElementById('gameBtns');
+const newGameBtn = document.getElementById('newGameBtn');
+
+// ====== PeerJS Setup ======
+function initPeer(id) {
+  return new Promise((resolve, reject) => {
+    const p = new Peer(id, { debug: 2 });
+    p.on('open', () => resolve(p));
+    p.on('error', err => reject(err));
+  });
+}
+
+// ====== Create Game ======
+async function createGame() {
+  try {
+    setStatus('Создаём комнату...', '');
+    isCreator = true;
+    myColor = 'w';
+    peer = await initPeer();
+    myPeerId = peer.id;
+
+    peer.on('connection', c => {
+      if (conn) { c.close(); return; } // only 1 opponent
+      conn = c;
+      setupConnection();
+    });
+
+    waitingMsg.classList.remove('hidden');
+    linkBox.classList.remove('hidden');
+    shareLink.textContent = window.location.origin + window.location.pathname + '?join=' + myPeerId;
+    setStatus('Ожидаем соперника...', '');
+
+  } catch (err) {
+    setStatus('Ошибка: ' + err.message, 'red-text');
+  }
+}
+
+// ====== Show Join ======
+function showJoin() {
+  joinRow.classList.toggle('hidden');
+}
+
+// ====== Join Game ======
+async function joinGame() {
+  const targetId = document.getElementById('peerIdInput').value.trim() || getQueryParam('join');
+  if (!targetId) { setStatus('Введите ID соперника', 'red-text'); return; }
+  try {
+    setStatus('Подключаемся...', '');
+    myColor = 'b';
+    isCreator = false;
+    peer = await initPeer();
+    conn = peer.connect(targetId, { reliable: true });
+    conn.on('open', () => {
+      setupConnection();
+      // Tell creator we joined
+      conn.send({ type: 'join', color: 'b' });
+    });
+    conn.on('error', e => setStatus('Ошибка соединения: ' + e.message, 'red-text'));
+  } catch (err) {
+    setStatus('Ошибка: ' + err.message, 'red-text');
+  }
+}
+
+// ====== Setup Connection ======
+function setupConnection() {
+  lobby.classList.add('hidden');
+  linkBox.classList.add('hidden');
+  playerInfo.classList.remove('hidden');
+  capturedEl.classList.remove('hidden');
+  gameBtns.classList.remove('hidden');
+  connDot.classList.add('online');
+
+  if (myColor === 'w') {
+    myDot.className = 'dot white';
+    oppDot.className = 'dot black';
+    myName.textContent = 'Вы (белые)';
+    oppName.textContent = 'Чёрные';
+    isMyTurn = true;
+  } else {
+    myDot.className = 'dot black';
+    oppDot.className = 'dot white';
+    myName.textContent = 'Вы (чёрные)';
+    oppName.textContent = 'Белые';
+    isMyTurn = false;
+  }
+
+  conn.on('data', data => {
+    if (data.type === 'move') {
+      const move = game.move(data.move);
+      if (move) {
+        renderBoard();
+        updateUI();
+        isMyTurn = true;
+        if (!game.game_over()) {
+          setStatus('Ваш ход (' + (myColor === 'w' ? 'белые' : 'чёрные') + ')', 'green-text');
+        }
+      }
+    } else if (data.type === 'surrender') {
+      setStatus('Соперник сдался! Вы выиграли! 🎉', 'green-text');
+      gameOver = true;
+      newGameBtn.classList.remove('hidden');
+      isMyTurn = false;
+      renderBoard();
+    } else if (data.type === 'new_game') {
+      game.reset();
+      gameOver = false;
+      isMyTurn = (myColor === 'w');
+      newGameBtn.classList.add('hidden');
+      renderBoard();
+      updateUI();
+      if (isMyTurn) setStatus('Новая игра! Ваш ход', 'green-text');
+      else setStatus('Новая игра! Ход соперника', '');
+    }
+  });
+
+  conn.on('close', () => {
+    connDot.classList.remove('online');
+    connDot.classList.add('offline');
+    if (!gameOver) setStatus('Соперник отключился', 'red-text');
+  });
+
+  gameStarted = true;
+  renderBoard();
+  updateUI();
+  if (isMyTurn) setStatus('Ваш ход (' + (myColor === 'w' ? 'белые' : 'чёрные') + ')', 'green-text');
+  else setStatus('Ход соперника', '');
+}
+
+// ====== Board Rendering with chess.js + vanilla JS ======
+let boardEl = document.getElementById('board');
+
+function renderBoard() {
+  const fen = game.fen();
+  const rows = fen.split(' ')[0].split('/');
+  const pieces = { 'r':'♜','n':'♞','b':'♝','q':'♛','k':'♚','p':'♟',
+                  'R':'♖','N':'♘','B':'♗','Q':'♕','K':'♔','P':'♙' };
+
+  let html = '<table style="width:100%;height:100%;border-collapse:collapse;table-layout:fixed">';
+  for (let r = 0; r < 8; r++) {
+    html += '<tr>';
+    let col = 0;
+    for (let ch of rows[r]) {
+      if (ch >= '1' && ch <= '8') {
+        const empty = parseInt(ch);
+        for (let i = 0; i < empty; i++) {
+          const isLight = (r + col) % 2 === 0;
+          html += `<td style="width:12.5%;height:12.5%;background:${isLight?'#f0d9b5':'#b58863'};text-align:center;font-size:clamp(18px,5vw,42px);cursor:pointer" data-row="${r}" data-col="${col}" onclick="clickSquare('${String.fromCharCode(97+col)}${8-r}')"></td>`;
+          col++;
+        }
+      } else {
+        const isLight = (r + col) % 2 === 0;
+        html += `<td style="width:12.5%;height:12.5%;background:${isLight?'#f0d9b5':'#b58863'};text-align:center;font-size:clamp(18px,5vw,42px);cursor:pointer" data-row="${r}" data-col="${col}" onclick="clickSquare('${String.fromCharCode(97+col)}${8-r}')">${pieces[ch]||''}</td>`;
+        col++;
+      }
+    }
+    html += '</tr>';
+  }
+  html += '</table>';
+  boardEl.innerHTML = html;
+  highlightLastMove();
+  highlightCheck();
+}
+
+function highlightLastMove() {
+  const hist = game.history({ verbose: true });
+  if (hist.length === 0) return;
+  const last = hist[hist.length - 1];
+  highlightSquare(last.from);
+  highlightSquare(last.to);
+}
+
+function highlightSquare(sq) {
+  if (!sq) return;
+  const col = sq.charCodeAt(0) - 97;
+  const row = 8 - parseInt(sq[1]);
+  const table = boardEl.querySelector('table');
+  if (!table) return;
+  const tr = table.rows[row];
+  if (!tr) return;
+  const td = tr.cells[col];
+  if (!td) return;
+  const bg = td.style.background;
+  if (bg.includes('f0d9b5')) td.style.background = '#f6e682';
+  else if (bg.includes('b58863')) td.style.background = '#cca832';
+}
+
+function highlightCheck() {
+  if (game.in_check()) {
+    // Find king square
+    const board = game.board();
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        const p = board[r][c];
+        if (p && p.type === 'k' && p.color === game.turn()) {
+          const td = boardEl.querySelector('table').rows[r].cells[c];
+          if (td) td.style.background = '#e74c3c';
+        }
+      }
+    }
+  }
+}
+
+// ====== Click to Move ======
+let selectedSquare = null;
+let selectedEl = null;
+
+function clickSquare(sq) {
+  if (gameOver || !isMyTurn || !conn || !gameStarted) return;
+
+  // If selecting own piece
+  const piece = game.get(sq);
+  if (piece && piece.color === myColor) {
+    // Deselect previous
+    if (selectedEl) selectedEl.style.outline = 'none';
+    selectedSquare = sq;
+    selectedEl = getCellEl(sq);
+    if (selectedEl) {
+      selectedEl.style.outline = '3px solid #e94560';
+      selectedEl.style.outlineOffset = '-3px';
+    }
+    showLegalMoves(sq);
+    return;
+  }
+
+  // If trying to move to a square
+  if (selectedSquare) {
+    const move = game.move({ from: selectedSquare, to: sq, promotion: 'q' });
+    if (move) {
+      clearSelection();
+      renderBoard();
+      updateUI();
+      conn.send({ type: 'move', move: { from: selectedSquare, to: sq, promotion: 'q' } });
+      isMyTurn = false;
+      if (game.game_over()) {
+        handleGameOver();
+      } else {
+        setStatus('Ход соперника', '');
+      }
+    } else {
+      // Invalid move, deselect
+      clearSelection();
+    }
+  }
+}
+
+function showLegalMoves(sq) {
+  const moves = game.moves({ square: sq, verbose: true });
+  clearHighlights();
+  for (const m of moves) {
+    const el = getCellEl(m.to);
+    if (el) {
+      const capture = m.flags.includes('c');
+      el.style.background = capture
+        ? 'radial-gradient(circle, transparent 60%, #e94560 60%)'
+        : 'radial-gradient(circle, rgba(233,69,96,0.4) 25%, transparent 25%)';
+    }
+  }
+}
+
+function clearHighlights() {
+  const cells = boardEl.querySelectorAll('td');
+  cells.forEach(td => {
+    td.style.background = td.style.background.replace(/radial-gradient.*\)/g, '').trim() || '';
+  });
+  // Re-render to restore proper colors
+  renderBoard();
+  if (selectedSquare) {
+    const el = getCellEl(selectedSquare);
+    if (el) { el.style.outline = '3px solid #e94560'; el.style.outlineOffset = '-3px'; }
+  }
+}
+
+function getCellEl(sq) {
+  const col = sq.charCodeAt(0) - 97;
+  const row = 8 - parseInt(sq[1]);
+  const table = boardEl.querySelector('table');
+  if (!table) return null;
+  const tr = table.rows[row];
+  if (!tr) return null;
+  return tr.cells[col];
+}
+
+function clearSelection() {
+  if (selectedEl) selectedEl.style.outline = 'none';
+  selectedSquare = null;
+  selectedEl = null;
+}
+
+// ====== Update UI ======
+function updateUI() {
+  // Captured pieces
+  const fen = game.fen();
+  const boardState = game.board();
+  const allPieces = { w: [], b: [] };
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      const p = boardState[r][c];
+      if (p) allPieces[p.color].push(p.type);
+    }
+  }
+
+  const allPiecesStr = { w: '', b: '' };
+  const counts = { w: { q:0,r:0,b:0,n:0,p:0 }, b: { q:0,r:0,b:0,n:0,p:0 } };
+  for (const color of ['w','b']) {
+    for (const p of allPieces[color]) counts[color][p]++;
+  }
+  // Expected starting counts
+  const start = { q:1, r:2, b:2, n:2, p:8 };
+  const captured = { w: '', b: '' };
+  const symbols = { q:'♛', r:'♜', b:'♝', n:'♞', p:'♟' };
+  for (const color of ['w','b']) {
+    for (const type of ['q','r','b','n','p']) {
+      const diff = start[type] - counts[color][type];
+      if (diff > 0) captured[color === 'w' ? 'b' : 'w'] += symbols[type].repeat(diff);
+    }
+  }
+  capturedWhite.textContent = captured.w;
+  capturedBlack.textContent = captured.b;
+
+  // Moves list
+  const history = game.history();
+  movesList.classList.remove('hidden');
+  movesList.innerHTML = '';
+  for (let i = 0; i < history.length; i += 2) {
+    const num = Math.floor(i/2) + 1;
+    const span = document.createElement('span');
+    span.innerHTML = `<span class="move-num">${num}.</span> ${history[i]}${history[i+1] ? ' ' + history[i+1] : ''}`;
+    movesList.appendChild(span);
+  }
+  movesList.scrollTop = movesList.scrollHeight;
+
+  // Game over detection
+  if (game.game_over()) handleGameOver();
+}
+
+function handleGameOver() {
+  gameOver = true;
+  isMyTurn = false;
+  newGameBtn.classList.remove('hidden');
+  let msg = '';
+  if (game.in_checkmate()) msg = 'Мат! ';
+  else if (game.in_draw()) msg = 'Ничья! ';
+  else if (game.in_stalemate()) msg = 'Пат! ';
+  else if (game.in_threefold_repetition()) msg = 'Троекратное повторение! ';
+  else if (game.insufficient_material()) msg = 'Недостаточно фигур! ';
+
+  if (game.in_checkmate()) {
+    const winner = game.turn() === 'w' ? 'Чёрные' : 'Белые';
+    msg += 'Победили ' + winner + '!';
+    if ((winner === 'Белые' && myColor === 'w') || (winner === 'Чёрные' && myColor === 'b')) {
+      msg += ' 🎉 Вы выиграли!';
+    } else {
+      msg += ' Соперник выиграл.';
+    }
+  } else {
+    msg += 'Игра окончена.';
+  }
+  setStatus(msg, winnerColor(msg) ? 'green-text' : '');
+}
+
+function winnerColor(msg) {
+  return msg.includes('Вы выиграли');
+}
+
+// ====== Actions ======
+function surrender() {
+  if (gameOver) return;
+  gameOver = true;
+  isMyTurn = false;
+  newGameBtn.classList.remove('hidden');
+  conn.send({ type: 'surrender' });
+  setStatus('Вы сдались. Соперник выиграл. 🤝', '');
+}
+
+function newGame() {
+  game.reset();
+  gameOver = false;
+  isMyTurn = (myColor === 'w');
+  newGameBtn.classList.add('hidden');
+  conn.send({ type: 'new_game' });
+  renderBoard();
+  updateUI();
+  if (isMyTurn) setStatus('Новая игра! Ваш ход', 'green-text');
+  else setStatus('Новая игра! Ход соперника', '');
+}
+
+function copyLink() {
+  navigator.clipboard.writeText(shareLink.textContent).then(() => {
+    const btn = shareLink.nextElementSibling;
+    btn.textContent = 'Скопировано!';
+    setTimeout(() => btn.textContent = 'Копировать', 2000);
+  });
+}
+
+// ====== Utils ======
+function setStatus(msg, cls) {
+  statusEl.textContent = msg;
+  statusEl.className = 'status' + (cls ? ' ' + cls : '');
+}
+
+function getQueryParam(name) {
+  const params = new URLSearchParams(window.location.search);
+  return params.get(name) || '';
+}
+
+// ====== Auto-join from URL ======
+window.addEventListener('DOMContentLoaded', () => {
+  const joinId = getQueryParam('join');
+  if (joinId) {
+    document.getElementById('peerIdInput').value = joinId;
+    joinGame();
+  }
+});
+</script>
+</body>
+</html>
