@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>Шахматы онлайн</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/1.0.0-beta.8/chess.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.13.4/chess.min.js"></script>
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -482,7 +482,8 @@ function updateTurnIndicator() {
 function clickSq(sq) {
   if (gameOver || !isMyTurn || !conn || !gameActive || overlay.classList.contains('hidden') === false) return;
 
-  const piece = game.get(sq);
+  const bd = game.board(); const rk = 8 - parseInt(sq[1]), fl = sq.charCodeAt(0) - 97;
+  const piece = bd[rk]?.[fl];
   if (piece && piece.color === myColor) {
     if (selectedEl) selectedEl.style.outline = 'none';
     selectedSquare = sq;
